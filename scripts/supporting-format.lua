@@ -11,7 +11,7 @@ function Div(div)
     pandoc.RawBlock("typst", "#block(width: 100%, above: 6pt, below: 6pt)[\n"
       .. "#set align(center)\n"
       .. "#set text(size: " .. size .. "pt)\n"
-      .. "#set par(first-line-indent: 0pt, leading: 2.5em)\n"
+      .. "#set par(first-line-indent: 0pt, leading: 1.25em)\n"
       .. "#show math.equation.where(block: true): set block(above: 0pt, below: 0pt)")
   }
   for _, block in ipairs(div.content) do result[#result + 1] = block end
