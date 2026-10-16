@@ -1,0 +1,58 @@
+*
+
+# Project setup and analysis
+!/.gitignore
+!/.here
+!/README.md
+!/config.R
+
+# Manuscript sources
+!/manuscript.qmd
+!/supporting-information.qmd
+!/references.bib
+!/supporting-information.bib
+!/apa.csl
+!/apa7-template.typ
+!/typst-show.typ
+
+# Analysis scripts
+!/scripts/
+!/scripts/01_prepare_sleep.R
+!/scripts/02_prepare_mental_health.R
+!/scripts/03_prepare_demographics.R
+!/scripts/04_build_analysis_data.R
+!/scripts/05_sample_summary.R
+!/scripts/06_prepare_model_inputs.R
+!/scripts/07_fit_models.R
+!/scripts/08_extract_results.R
+!/scripts/09_generate_outputs.R
+!/scripts/10_fit_sensitivity_models.R
+!/scripts/11_descriptive_statistics.R
+!/scripts/12_posterior_summaries.R
+!/scripts/13_correlation_table.R
+!/scripts/14_sleep_variability_figure.R
+!/scripts/15_statistical_path_diagram.R
+!/scripts/16_conceptual_path_diagram.R
+
+# Required dependencies
+!/scripts/helpers.R
+!/scripts/sleep_helpers.R
+!/scripts/model_helpers.R
+!/scripts/stan_csv_helpers.R
+!/scripts/ppc_helpers.R
+!/scripts/diagnostic_helpers.R
+!/scripts/figure_fonts.R
+!/scripts/path_diagram_helpers.R
+
+# PDF menauscript renderers
+!/scripts/manuscript_tables.R
+!/scripts/apa-headings.lua
+!/scripts/manuscript-reference-format.lua
+!/scripts/supporting-format.lua
+!/scripts/templates/
+!/scripts/templates/supporting/
+!/scripts/templates/supporting/typst-show.typ
+
+# Stan model
+!/models/
+!/models/sleep_iiv_model_cbcl_decomp.stan

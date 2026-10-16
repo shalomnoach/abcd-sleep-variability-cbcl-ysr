@@ -1,0 +1,246 @@
+---
+title: "Supporting Information"
+subtitle: |
+  The Association Between Sleep Variability and\
+  Psychological Functioning in the ABCD Study
+author:
+  - name: Shalom N. Jaffe and Eleanor L. McGlinchey
+bibliography:
+  - references.bib
+  - supporting-information.bib
+citeproc: true
+csl: apa.csl
+link-citations: true
+filters:
+  - scripts/supporting-format.lua
+format:
+  typst:
+    columns: 1
+    template-partials:
+      - scripts/templates/supporting/typst-show.typ
+    include-in-header:
+      text: |
+        #import "apa7-template.typ": apa7
+  docx:
+    reference-doc: jcpp-reference.docx
+    toc: false
+    number-sections: false
+    fig-cap-location: top
+    tbl-cap-location: top
+    keep-md: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(dplyr)
+library(tidyr)
+library(stringr)
+source("config.R")
+
+read_output <- function(filename) {
+  readRDS(file.path(report_data_dir, filename))
+}
+
+sensitivity_coefficients <- read_output("sensitivity_coefficients.rds")
+sensitivity_samples <- read_output("sensitivity_sample_summary.rds")
+parameter_summary <- read_output("manuscript_parameter_summary.rds")
+
+fmt_n <- function(x) {
+  format(as.numeric(x), big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+get_sensitivity_max <- function(instrument_value, statistic) {
+  values <- sensitivity_samples |>
+    filter(.data$instrument == instrument_value) |>
+    pull(all_of(statistic))
+  fmt_n(max(values))
+}
+
+is_docx_output <- identical(knitr::pandoc_to(), "docx")
+source(if (is_docx_output) {
+  "scripts/manuscript_tables_docx.R"
+} else {
+  "scripts/manuscript_tables.R"
+})
+```
+
+## Appendix S1: Model Specification
+
+All models were estimated using Hamiltonian Monte Carlo sampling in Stan [@stan2024] via the cmdstanr package in R [@cmdstanr2024]. The same age-detrended location-scale model was applied to all six outcomes. This model partitions latent sleep parameters into between-person and within-person components. The latent variability formulation follows the structural equation modeling approach described by @feng2022a. Across all models, race, ethnicity, and family income were included as categorical covariates with reference categories White, non-Hispanic, and >\$100K, respectively.
+
+### Level 1: Nightly Sleep Observations
+
+Each daily observation $t$ is nested within participant-session $i$. Let $p(i)$ identify the participant contributing that session. The nightly observation model is:
+
+::: {custom-style="SupportingEquation"}
+
+$$
+\begin{array}{c}
+\mathrm{duration}_{ti} \sim \operatorname{Normal}(\mu^{\mathrm{dur}}_i, \sigma^{\mathrm{dur}}_i) \\
+\mathrm{midpoint}_{ti} \sim \operatorname{Normal}(\mu^{\mathrm{mid}}_i, \sigma^{\mathrm{mid}}_i) \\
+\sigma^{\mathrm{dur}}_i = \exp(\ell^{\mathrm{dur}}_i / 2) \\
+\sigma^{\mathrm{mid}}_i = \exp(\ell^{\mathrm{mid}}_i / 2)
+\end{array}
+$$
+
+:::
+
+Duration and aligned midpoint are expressed in hours. Here $\ell^{\mathrm{dur}}_i = \ln((\sigma^{\mathrm{dur}}_i)^2)$ and $\ell^{\mathrm{mid}}_i = \ln((\sigma^{\mathrm{mid}}_i)^2)$ are session-specific log-variances. Univariate normal distributions are parameterized by their mean and standard deviation. Conditional on the session's latent parameters, nightly observations are independent, and duration and midpoint have independent residuals. Their latent means and log-variances can nevertheless covary through the multivariate session model.
+
+### Level 2: Participant-Session Latent Sleep Parameters
+
+The four latent sleep parameters for each participant-session are drawn from a multivariate normal distribution using a non-centered parameterization:
+
+::: {custom-style="SupportingEquation"}
+
+$$
+\begin{array}{c}
+\boldsymbol{\eta}_i = [\mu^{\mathrm{dur}}_i, \ell^{\mathrm{dur}}_i, \mu^{\mathrm{mid}}_i, \ell^{\mathrm{mid}}_i]' \\
+\boldsymbol{\eta}_i = \boldsymbol{\gamma} + \boldsymbol{\gamma}_{\mathrm{age}} a_i^c + \operatorname{diag}(\boldsymbol{\tau}) \mathbf{L}_{\Omega}\mathbf{z}_i \\
+\mathbf{z}_i \sim \operatorname{Normal}_4(\mathbf{0}, \mathbf{I}_4) \\
+\boldsymbol{\Sigma} = \operatorname{diag}(\boldsymbol{\tau})\boldsymbol{\Omega}\operatorname{diag}(\boldsymbol{\tau}) \\
+\boldsymbol{\Omega} = \mathbf{L}_{\Omega}\mathbf{L}_{\Omega}'
+\end{array}
+$$
+
+:::
+
+The four elements of $\boldsymbol{\gamma}$ are the population means at the centered age. The vector $\boldsymbol{\gamma}_{\mathrm{age}}$ contains the corresponding linear age slopes. Age in years was calculated at the midpoint of each session's monitoring period and centered on its mean across the model's eligible participant-sessions, giving $a_i^c$. The multivariate normal distribution uses a covariance matrix as its second argument.
+
+The positive elements of $\boldsymbol{\tau}$ are residual standard deviations across participant-sessions after accounting for age. They are not separate between-person or within-person standard deviations.
+
+The standardized vectors $\mathbf{z}_i$ have independent priors across sessions; the sleep model does not add a participant-specific latent random effect.
+
+$\mathbf{L}_{\Omega}$ is a lower-triangular Cholesky factor of a four-dimensional correlation matrix. It has positive diagonal entries and unit row norms: its six entries below the diagonal are free, its upper-triangular entries are zero, its first diagonal entry is one, and its remaining diagonal entries are determined by the row-norm constraints.
+
+### Between-Person and Within-Person Decomposition
+
+The model partitions each latent sleep parameter into between-person and within-person components, consistent with recommendations for disaggregating longitudinal within-person and between-person effects [@curran2011]. To account for age-related trends across the assessment waves, latent sleep parameters were first detrended within each posterior draw:
+
+::: {custom-style="SupportingEquation"}
+
+$$
+\boldsymbol{\eta}^{\mathrm{detrended}}_i = \boldsymbol{\eta}_i - \boldsymbol{\gamma}_{\mathrm{age}}a_i^c
+$$
+
+:::
+
+For participant $p$, the between-person component was computed by averaging their detrended latent values across sessions, weighting each session equally. Here, $S_p$ is the set of eligible sessions and $n_p$ is its size:
+
+::: {custom-style="SupportingEquation"}
+
+$$
+\boldsymbol{\eta}^{\mathrm{between}}_p = \frac{1}{n_p}\sum_{i \in S_p}\boldsymbol{\eta}^{\mathrm{detrended}}_i
+$$
+
+:::
+
+The within-person component was the session-level deviation:
+
+::: {custom-style="SupportingEquation"}
+
+$$
+\boldsymbol{\eta}^{\mathrm{within}}_i = \boldsymbol{\eta}^{\mathrm{detrended}}_i - \boldsymbol{\eta}^{\mathrm{between}}_{p(i)}
+$$
+
+:::
+
+Within-person components sum to zero across a participant's sessions and are zero for participants with only one eligible session. These components are derived from the session-level latent parameters rather than estimated from two additional population covariance matrices.
+
+### Outcome Model
+
+The outcome model included separate coefficient vectors for between-person and within-person effects. For each participant-session $i$ belonging to participant $p(i)$:
+
+::: {custom-style="SupportingEquation"}
+
+$$
+\begin{array}{c}
+y_i \sim \operatorname{Normal}(\mu_i, \sigma_y) \\
+\mu_i = \beta_0 + \boldsymbol{\beta}_{\mathrm{between}}'\boldsymbol{\eta}^{\mathrm{between}}_{p(i)} + \boldsymbol{\beta}_{\mathrm{within}}'\boldsymbol{\eta}^{\mathrm{within}}_i + b^{\mathrm{race}}_{R_{p(i)}} + b^{\mathrm{ethnicity}}_{E_{p(i)}} + b^{\mathrm{income}}_{I_i} + u_{p(i)} \\
+u_p = \sigma_p v_p \\
+v_p \sim \operatorname{Normal}(0, 1)
+\end{array}
+$$
+
+:::
+
+Here, $y_i$ is the mental health *T*-score. The four coefficients in each sleep-effect vector follow the same order as $\boldsymbol{\eta}_i$: mean duration, duration log-variance, mean midpoint, and midpoint log-variance. The positive parameters $\sigma_p$ and $\sigma_y$ are the participant random-intercept and outcome residual standard deviations. Both instruments use this random-intercept specification.
+
+Race $R_p$ and ethnicity $E_p$ were treated as constant within participants; income $I_i$ could vary by session. Race comprised White, Black, Asian, Multiracial, and Other; Other combined American Indian/Alaska Native, Native Hawaiian or Other Pacific Islander, and other/unknown/not-reported race. Ethnicity comprised non-Hispanic and Hispanic categories. Income comprised >\$100K, \$50K--\$100K, <\$50K, don't know, and decline to answer. The first category in each list was the reference, with its coefficient fixed at zero; the remaining category coefficients were estimated. There were no additional covariate terms. Age entered through the latent sleep trends, and neither age nor sex was entered directly into the outcome regression.
+
+### Missing Data
+
+Missing categorical covariates were handled via Bayesian marginalization. Missing race and ethnicity were marginalized across all sessions from the same participant. If either category was observed in any of a participant's sessions, that observed value was used for every session; conflicting observed values were not allowed. Missing income was marginalized separately within each session. With $\mu_i(r,e,k)$ denoting the outcome linear predictor evaluated at race $r$, ethnicity $e$, and income $k$, participant $p$'s outcome likelihood contribution was:
+
+::: {custom-style="SupportingEquationSmall"}
+
+$$
+p(\mathbf{y}_{S_p}\mid\theta) = \sum_{r=1}^{5}\sum_{e=1}^{2}w^{\mathrm{race}}_{pr}w^{\mathrm{ethnicity}}_{pe}
+\prod_{i\in S_p}\left[\sum_{k=1}^{5}w^{\mathrm{income}}_{ik}\operatorname{Normal}\{y_i\mid\mu_i(r,e,k),\sigma_y\}\right]
+$$
+
+:::
+
+For an observed covariate, its weight is one at the observed category and zero elsewhere. For a missing covariate, the weights are the fixed observed category proportions in that model's analytic sample. Race and ethnicity proportions use one record per participant, whereas income proportions use participant-sessions. The model uses the product of the race and ethnicity weights and evaluates the mixture likelihoods with a numerically stable log-sum-exp calculation. Thus, a missing participant-level category is shared across that participant's sessions rather than independently drawn for each session.
+
+Ethnicity was missing in 18 participant-sessions in each CBCL model and six in each YSR model. Race and income had no genuine missing values in these model inputs. Don't-know and decline-to-answer income responses were retained as categories. Models included only nights with finite duration and midpoint and sessions with finite age and outcome scores; missing values in those variables were not imputed.
+
+```{r appendix-s1-table, results='asis'}
+render_prior_distributions_table(table_number = "S1.1", note = NULL)
+```
+
+```{=openxml}
+<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p>
+```
+
+::: {.content-visible when-format="docx"}
+
+## Appendix S2: Complete Parameter Estimates
+
+:::
+
+```{r appendix-s2, results='asis'}
+render_parameter_tables(
+  parameter_summary,
+  heading = !is_docx_output,
+  table_prefix = "S2.",
+  start_number = 1L
+)
+```
+
+```{=openxml}
+<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p>
+```
+
+## Appendix S3: Frequentist Sensitivity Analysis
+
+To assess whether our findings were robust to the choice of modeling framework, we re-estimated the models using conventional multilevel regression models. For both CBCL and YSR outcomes, we used maximum likelihood to estimate models with separate between-person and within-person sleep components and a participant random intercept. In line with prior research using regression-based approaches [@lau2022; @lunsford2018supporting], for these analyses we included only sessions with at least five nights of sleep data. The CBCL analyses included `r get_sensitivity_max("CBCL", "analysis_participants")` participants and `r get_sensitivity_max("CBCL", "sessions_analysis_complete")` sessions; the YSR analyses included `r get_sensitivity_max("YSR", "analysis_participants")` participants and `r get_sensitivity_max("YSR", "sessions_analysis_complete")` sessions.
+
+For each session, we calculated observed means and intraindividual standard deviations (*iSD*s) of duration and midpoint. Similar to the approach used in our main models, we detrended each parameter using its linear association with age. We then averaged the detrended parameters across each participant's sessions, weighting sessions equally, to obtain between-person components. Within-person components were session-specific deviations from these averages. All models included four between-person and four within-person sleep predictors and the same covariates as the main models. Table S3.1 presents the between-person coefficients. We report coefficient standard errors and calculate 95% confidence intervals and p values using the t distribution with Satterthwaite degrees of freedom.
+
+Coefficient estimates are not directly comparable across approaches because the Bayesian models estimate sleep variability as a latent parameter on the log-variance scale. Nevertheless, the results in Table S3.1 were consistent with the main findings: greater between-person sleep duration variability was positively associated with all six outcomes, and all 95% confidence intervals excluded zero.
+
+```{=openxml}
+<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p>
+```
+
+```{r appendix-s3, results='asis'}
+render_sensitivity_table(
+  sensitivity_coefficients,
+  sensitivity_samples,
+  heading = FALSE,
+  table_number = "S3.1"
+)
+```
+
+```{=openxml}
+<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p>
+```
+
+# References
+
+::: {#refs}
+:::

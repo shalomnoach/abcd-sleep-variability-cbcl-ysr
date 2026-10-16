@@ -1,0 +1,679 @@
+---
+title: "The Association Between Sleep Variability and Psychological Functioning in the ABCD Study"
+author:
+  - name: Shalom N. Jaffe
+    orcid: 0000-0002-7523-5213
+    affiliations: [fdu]
+  - name: Eleanor L. McGlinchey
+    orcid: 0000-0002-2817-688X
+    affiliations: [fdu]
+affiliations:
+  - id: fdu
+    name: Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University
+bibliography: references.bib
+# The reference-format filter resolves citations before preserving author styling.
+citeproc: false
+csl: apa.csl
+link-citations: true
+filters:
+  - scripts/apa-headings.lua
+  - scripts/manuscript-reference-format.lua
+format:
+  typst:
+    columns: 1
+    template-partials:
+      - typst-show.typ
+    include-in-header:
+      text: |
+        #import "apa7-template.typ": apa7
+  docx:
+    reference-doc: jcpp-reference.docx
+    toc: false
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(stringr)
+source("config.R")
+
+read_output <- function(filename) {
+  readRDS(file.path(report_data_dir, filename))
+}
+demographics_raw <- read_output("demographics_summary.rds")
+descriptive_statistics <- read_output("descriptive_statistics.rds")
+correlations <- read_output("correlations.rds")
+empirical_percentiles <- read_output(
+  "empirical_sleep_variability_percentiles.rds"
+)
+parameter_summary <- read_output("manuscript_parameter_summary.rds")
+linkage_summary <- read_output("assessment_sleep_linkage_summary.rds")
+
+fmt <- function(x, digits = 2) {
+  value <- format(round(as.numeric(x), digits), nsmall = digits, trim = TRUE)
+  sub("^-", "−", value)
+}
+demographics <- demographics_raw |>
+  filter(.data$unit == "participant", .data$model_name == "total_problems_reference") |>
+  distinct(instrument, participants)
+get_desc <- function(
+  instrument_value,
+  measure_value,
+  statistic_value,
+  digits = 2
+) {
+  score_measures <- c(
+    "cbcl_ext",
+    "cbcl_int",
+    "cbcl_tot",
+    "ysr_ext",
+    "ysr_int",
+    "ysr_tot"
+  )
+  model_value <- if (measure_value %in% score_measures) {
+    "total_problems_reference"
+  } else {
+    if (instrument_value == "CBCL") {
+      "cbcl_total_detrended"
+    } else {
+      "ysr_total_detrended"
+    }
+  }
+  values <- descriptive_statistics |>
+    filter(
+      .data$instrument == instrument_value,
+      .data$measure == measure_value,
+      .data$model_name == model_value
+    ) |>
+    pull(all_of(statistic_value))
+  fmt(values, digits)
+}
+n_cbcl_unique <- demographics$participants[demographics$instrument == "CBCL"]
+n_ysr_unique <- demographics$participants[demographics$instrument == "YSR"]
+get_pct <- function(pct) {
+  values <- empirical_percentiles |>
+    filter(.data$percentile == pct) |>
+    pull(isd_hours)
+  fmt(values)
+}
+
+get_empirical_logvar_contrast <- function(comparison_val) {
+  percentile_pair <- if (comparison_val == "25th vs 75th") {
+    c("25%", "75%")
+  } else if (comparison_val == "10th vs 90th") {
+    c("10%", "90%")
+  } else {
+    stop("Unknown percentile comparison: ", comparison_val)
+  }
+  values <- empirical_percentiles |>
+    filter(.data$percentile %in% percentile_pair) |>
+    arrange(match(.data$percentile, percentile_pair)) |>
+    pull(isd_hours)
+  stopifnot(length(values) == 2L, all(is.finite(values)), all(values > 0))
+  log(values[[2]]^2) - log(values[[1]]^2)
+}
+
+get_duration_variability_coefficients <- function(informant_val = NULL) {
+  values <- parameter_summary |>
+    filter(.data$variable == "beta_sleep_between[2]")
+  if (!is.null(informant_val)) {
+    values <- values |> filter(.data$instrument == informant_val)
+  }
+  values
+}
+
+get_effect <- function(
+  informant_val,
+  outcome_val,
+  comparison_val
+) {
+  coefficient <- get_duration_variability_coefficients(informant_val) |>
+    filter(
+      .data$outcome == paste(informant_val, outcome_val)
+    ) |>
+    pull(mean)
+  stopifnot(length(coefficient) == 1L)
+  fmt(coefficient * get_empirical_logvar_contrast(comparison_val))
+}
+
+get_effect_minmax <- function(informant_val) {
+  coefficients <- get_duration_variability_coefficients(informant_val) |>
+    pull(mean)
+  contrasts <- vapply(
+    c("25th vs 75th", "10th vs 90th"),
+    get_empirical_logvar_contrast,
+    numeric(1)
+  )
+  values <- as.vector(outer(coefficients, contrasts))
+  paste0(fmt(min(values, na.rm = TRUE)), " to ", fmt(max(values, na.rm = TRUE)))
+}
+
+get_effect_range <- function() {
+  coefficients <- get_duration_variability_coefficients() |> pull(mean)
+  contrasts <- vapply(
+    c("25th vs 75th", "10th vs 90th"),
+    get_empirical_logvar_contrast,
+    numeric(1)
+  )
+  values <- as.vector(outer(coefficients, contrasts)) / 10
+  paste0(fmt(min(values, na.rm = TRUE)), "–", fmt(max(values, na.rm = TRUE)))
+}
+get_corr <- function(var1, var2) {
+  values <- correlations |>
+    filter(
+      (.data$variable1 == var1 & .data$variable2 == var2) |
+        (.data$variable1 == var2 & .data$variable2 == var1)
+    ) |>
+    pull(correlation)
+  sub("^([−-]?)0\\.", "\\1.", fmt(values))
+}
+get_corr_range <- function(
+  predictor,
+  outcomes = c(
+    "cbcl_externalizing",
+    "cbcl_internalizing",
+    "cbcl_total",
+    "ysr_externalizing",
+    "ysr_internalizing",
+    "ysr_total"
+  )
+) {
+  rows <- correlations |>
+    filter(
+      (.data$variable1 == predictor & .data$variable2 %in% outcomes) |
+        (.data$variable2 == predictor & .data$variable1 %in% outcomes)
+    )
+  matched_outcomes <- ifelse(
+    rows$variable1 == predictor,
+    rows$variable2,
+    rows$variable1
+  )
+  values <- rows$correlation
+  stopifnot(
+    length(values) == length(outcomes),
+    setequal(matched_outcomes, outcomes),
+    anyDuplicated(matched_outcomes) == 0L,
+    all(is.finite(values))
+  )
+  formatted <- sub("^([−-]?)0\\.", "\\1.", fmt(range(values)))
+  paste(formatted, collapse = " to ")
+}
+model_counts <- read_output("model_input_summary.rds")
+sampler_diagnostics <- read_output("sampler_diagnostics.rds")
+
+fmt_n <- function(x) {
+  format(as.numeric(x), big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+get_sampler_setting <- function(statistic) {
+  values <- sampler_diagnostics |>
+    pull(all_of(statistic)) |>
+    unique()
+  stopifnot(length(values) == 1L, is.finite(values))
+  fmt_n(values)
+}
+get_age <- function(instrument_value, statistic = "mean") {
+  values <- demographics_raw |>
+    filter(
+      .data$instrument == instrument_value,
+      .data$model_name == "total_problems_reference",
+      .data$unit == "participant",
+      .data$variable == "age_mid_ps"
+    ) |>
+    pull(all_of(statistic))
+  fmt(values)
+}
+get_model_count <- function(instrument_value, statistic) {
+  values <- model_counts |>
+    filter(
+      .data$instrument == instrument_value,
+      .data$outcome == paste(instrument_value, "Total Problems")
+    ) |>
+    pull(all_of(statistic))
+  fmt_n(values)
+}
+get_count_range <- function(instrument_value, statistic = "N_participants") {
+  values <- model_counts |>
+    filter(.data$instrument == instrument_value) |>
+    pull(all_of(statistic))
+  paste(fmt_n(range(values)), collapse = "–")
+}
+get_beta <- function(
+  instrument_value,
+  outcome_value,
+  index = 2L,
+  component = "between",
+  statistic = "mean"
+) {
+  values <- parameter_summary |>
+    filter(
+      .data$instrument == instrument_value,
+      .data$outcome == paste(instrument_value, outcome_value),
+      .data$variable == paste0("beta_sleep_", component, "[", index, "]")
+    ) |>
+    pull(all_of(statistic))
+  fmt(values)
+}
+get_beta_interval <- function(
+  instrument_value,
+  outcome_value,
+  index = 2L,
+  component = "between"
+) {
+  paste0(
+    "[",
+    get_beta(instrument_value, outcome_value, index, component, "q2.5"),
+    ", ",
+    get_beta(instrument_value, outcome_value, index, component, "q97.5"),
+    "]"
+  )
+}
+get_ysr_04_linkage <- function(statistic, digits = 2) {
+  values <- linkage_summary |>
+    filter(
+      .data$instrument == "YSR",
+      .data$sleep_session_id == "ses-04A",
+      .data$assessment_session_id == "ses-04M"
+    ) |>
+    pull(all_of(statistic))
+  stopifnot(length(values) == 1L, is.finite(values))
+  fmt(values, digits)
+}
+
+correlation_descriptives <- read_output("correlation_descriptives.rds")
+is_docx_output <- identical(knitr::pandoc_to(), "docx")
+source(if (is_docx_output) {
+  "scripts/manuscript_tables_docx.R"
+} else {
+  "scripts/manuscript_tables.R"
+})
+
+word_count_file <- file.path(outputs_dir, "manuscript_word_count.txt")
+manuscript_word_count <- if (file.exists(word_count_file)) {
+  paste("Word count:", readLines(word_count_file, warn = FALSE, n = 1L))
+} else {
+  ""
+}
+```
+
+```{=typst}
+#v(1in)
+#align(center)[
+  #set par(first-line-indent: 0pt)
+  #strong[The Association Between Sleep Variability \
+  and Psychological Functioning in the ABCD Study]
+
+  Shalom N. Jaffe and Eleanor L. McGlinchey
+
+  #emph[Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University]
+]
+#v(1fr)
+#align(left)[
+  #set par(first-line-indent: 0pt)
+  #strong[`r manuscript_word_count`]
+]
+#align(center)[
+  #set par(first-line-indent: 0pt)
+  #strong[Author Note]
+]
+#par(first-line-indent: 0pt)[
+  Shalom N. Jaffe: #link("https://orcid.org/0000-0002-7523-5213")[https://orcid.org/0000-0002-7523-5213] \
+  Eleanor L. McGlinchey: #link("https://orcid.org/0000-0002-2817-688X")[https://orcid.org/0000-0002-2817-688X]
+]
+Correspondence concerning this article should be addressed to Shalom N. Jaffe, MA, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: #link("mailto:s.jaffe@student.fdu.edu")[s.jaffe\@student.fdu.edu]
+#pagebreak()
+#set par(first-line-indent: 0pt)
+```
+
+::: {.content-visible when-format="docx"}
+
+```{=openxml}
+<w:p><w:pPr><w:pStyle w:val="Title"/><w:spacing w:before="1440" w:after="0" w:line="480" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>The Association Between Sleep Variability and Psychological Functioning in the ABCD Study</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Shalom N. Jaffe and Eleanor L. McGlinchey</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/><w:jc w:val="left"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>`r manuscript_word_count`</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>Author Note</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Shalom N. Jaffe: https://orcid.org/0000-0002-7523-5213</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Eleanor L. McGlinchey: https://orcid.org/0000-0002-2817-688X</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Correspondence concerning this article should be addressed to Shalom N. Jaffe, MA, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: s.jaffe@student.fdu.edu</w:t></w:r></w:p>
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+:::
+
+# Abstract
+
+::: {custom-style="Abstract"}
+
+**Background:** Sleep disturbances are closely linked to psychopathology, yet most research has focused on mean sleep duration rather than night-to-night variability. This study examines whether sleep variability is associated with internalizing and externalizing problems in youth.
+
+**Method:** Data come from release 7.0 of the Adolescent Brain Cognitive Development (ABCD) Study, including `r fmt_n(n_cbcl_unique)` youth with parent-reported outcomes (Child Behavior Checklist; *M*~age~ = `r get_age("CBCL")` years) and `r fmt_n(n_ysr_unique)` with self-reported outcomes (Youth Self-Report; *M*~age~ = `r get_age("YSR")` years) in the Total Problems reference cohorts. Sleep duration and timing were derived from Fitbit-measured sleep. Bayesian multilevel location–scale models simultaneously estimated individual differences in mean sleep and night-to-night variability and examined their between-person and within-person associations with age- and sex-normed internalizing, externalizing, and total problem scores after age detrending, adjusting for race, ethnicity, and family income.
+
+**Results:** Between-person sleep duration variability (log-variance) was a consistent predictor of mental health problems. In parent-reported models, higher variability predicted greater Externalizing (*b* = `r get_beta("CBCL", "Externalizing Problems")`, 95% CrI `r get_beta_interval("CBCL", "Externalizing Problems")`), Internalizing (*b* = `r get_beta("CBCL", "Internalizing Problems")`, `r get_beta_interval("CBCL", "Internalizing Problems")`), and Total Problems (*b* = `r get_beta("CBCL", "Total Problems")`, `r get_beta_interval("CBCL", "Total Problems")`). Similar patterns emerged in youth self-reports (Externalizing: *b* = `r get_beta("YSR", "Externalizing Problems")`, `r get_beta_interval("YSR", "Externalizing Problems")`; Internalizing: *b* = `r get_beta("YSR", "Internalizing Problems")`, `r get_beta_interval("YSR", "Internalizing Problems")`; Total: *b* = `r get_beta("YSR", "Total Problems")`, `r get_beta_interval("YSR", "Total Problems")`), corresponding to approximately `r get_effect_range()` normative *SD* differences across typical ranges of variability. Mean sleep duration was positively associated with all parent-reported outcomes and youth-reported Internalizing and Total Problems.
+
+**Conclusion:** In summary, sleep duration variability emerged as a robust between-person correlate of youth psychopathology, independent of average sleep duration. These findings highlight sleep consistency as an important dimension of sleep health.
+
+**Keywords:** sleep, sleep variability, adolescence, internalizing problems, externalizing problems
+
+**Abbreviations:** CrI = credible interval.
+
+:::
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+```{=typst}
+#pagebreak()
+#set par(first-line-indent: (amount: 0.5in, all: true))
+```
+
+# The Association Between Sleep Variability and Psychological Functioning in the ABCD Study
+
+Sleep disturbances frequently co-occur with psychiatric conditions across the diagnostic spectrum. In some disorders (such as major depressive disorder, generalized anxiety disorder, posttraumatic stress disorder, and others), sleep problems are so closely intertwined with core symptoms that they are used as a diagnostic criterion [@apa2022; @who2024]. Understanding sleep is therefore important not only for addressing sleep problems directly but also for understanding and improving mental health outcomes more broadly.
+
+Contemporary approaches to psychopathology increasingly emphasize transdiagnostic and dimensional frameworks over categorical diagnoses [@kotov2017; @krueger2018]. One widely used framework distinguishes between internalizing problems—such as depression, anxiety, and related forms of inwardly directed distress—and externalizing problems—including aggression, impulsivity, and rule-breaking behavior [@achenbach1978]. Sleep disturbances have been linked to both dimensions, with sleep problems predicting elevated depressive [@baglioni2011] and anxious [@neckelmann2007] symptoms as well as aggression [@kamphuis2012], impulsivity [@ireland2006], and conduct problems [@chervin2003].
+
+The majority of research examining associations between sleep and mental health has focused on mean sleep duration as a predictor—demonstrating, for example, that people who do not get enough sleep tend to have worse mood [@dong2022] and increased aggressive or disruptive behaviors [@pilcher1996; @kamphuis2012]. However, considerably less research has examined how night-to-night variability in sleep duration and sleep timing relates to these outcomes. This is noteworthy given that there are strong theoretical reasons to expect sleep variability to be associated with worse mental health.
+
+Sleep is regulated by two interacting processes: a circadian system that promotes sleep at consistent times within the 24-hour cycle and a homeostatic process through which sleep pressure accumulates during waking and dissipates during sleep [@borbely1982]. When sleep *timing* shifts unpredictably from night to night, the biological circadian system does not align with behavior or external timekeeping signals [called *zeitgebers*\; @baron2014; @sharma2005]; when sleep *duration* fluctuates, the homeostatic balance between sleep pressure and recovery is also destabilized. These are potentially distinct sources of irregularity. For example, a child might sleep from 11:00 PM to 7:00 AM on one night and from 12:00 AM to 6:00 AM on another (same midpoint, different duration), or from 10:00 PM to 6:00 AM versus 12:00 AM to 8:00 AM (same duration, different midpoint). We therefore consider night-to-night fluctuations in sleep duration and sleep phase as unique dimensions of sleep regularity.
+
+Childhood and adolescence are particularly important periods for examining sleep variability. During these stages, systems involved in emotional and behavioral self-regulation are still developing, and school schedules and family routines strongly influence sleep timing. Adolescence is also characterized by biologically driven delays in circadian timing, early school start times that conflict with this later circadian phase, and *social jetlag*, where adolescents accumulate sleep debt during the school week and attempt to compensate on weekends, resulting in pronounced weekday-weekend discrepancies in sleep timing [@crowley2007; @wittmann2006]. Although younger children do not experience these puberty-related circadian shifts, they may still exhibit substantial night-to-night variability due to inconsistent routines, family schedules, and individual differences in biological sleep processes.
+
+Moreover, whether sleep disturbance is more strongly associated with internalizing or externalizing pathology may vary by age. While sleep problems in adolescence and adulthood often show stronger associations with internalizing symptoms, they remain linked to externalizing difficulties as well [@short2020; @vanveen2020]. In younger children, insufficient sleep may manifest behaviorally as hyperactivity, irritability, and impulsivity rather than as fatigue, which can make sleep problems easy to overlook as a contributor to behavioral presentations [@beebe2006; @fallone2001; @schrack2021; @sadeh2003]. Experimentally restricted sleep in children has been shown to increase hyperactivity, impulsivity, and oppositional behavior [@gruber2012; @vriend2013], all core features of externalizing problems.
+
+A limited but growing body of research has linked sleep variability to adverse cognitive, academic, and mental health outcomes in both adults and youth. Studies show that greater sleep duration variability predicts poorer academic performance [@okano2019; @phillips2017] and impaired learning and memory [@stiver2021]. Irregular sleep timing predicts increases in depressive symptoms over time [@castiglione2023], nights of shorter-than-usual sleep predict higher next-day anxiety [@cox2018], and deviations from typical sleep duration predict elevated next-day suicidal ideation in high-risk youth [@hamilton2023]. A recent pooled analysis across eight samples found that irregularity in sleep duration and timing predicted higher levels of depression and insomnia symptoms, independent of mean sleep duration [@messman2024]. Together, these findings indicate that sleep regularity represents a distinct and clinically meaningful dimension of sleep health.
+
+Few studies have examined whether sleep variability differentially affects internalizing versus externalizing dimensions of psychopathology. Moreover, most prior studies have operationalized sleep variability using summary metrics such as intraindividual standard deviations or related indices [@bei2016; @bei2017; @castiglione2023; @lunsford2018; @messman2024; @phillips2017] that are treated as error-free predictors in regression models. In practice, estimates of an individual's sleep variability are based on a finite number of nights and are affected by measurement noise. When this uncertainty is ignored, associations between sleep variability and outcomes are often attenuated [@asparouhov2020; @feng2022a; @wangliu2026]. Several prior studies have also relied on relatively small or niche samples, which can limit generalizability.
+
+The present study addresses these limitations by examining associations between night-to-night variability in sleep duration and sleep phase and mental health problems in a large, diverse sample of children and adolescents from the Adolescent Brain Cognitive Development (ABCD) Study. Using Bayesian multilevel location-scale models, we estimate person-specific mean sleep and sleep variability directly from nightly wearable data while accounting for measurement uncertainty and adjusting for relevant covariates. We then examine how variability in sleep duration and sleep phase relates to internalizing, externalizing, and total mental health problems using both parent and youth reports.
+
+# Method
+
+## Participants
+
+Data come from the Adolescent Brain Cognitive Development (ABCD) Study [release 7.0\; @karcher2021], an ongoing longitudinal study of child and adolescent development. The full ABCD study consists of 11,868 children and their caregivers recruited across 21 research sites.
+
+For the current analyses, we included participants who had at least one night of sleep data from Fitbit wearable devices and available linked mental health outcome data. After applying these criteria, the analytic samples consisted of `r fmt_n(n_cbcl_unique)` participants with parent-reported outcome data and `r fmt_n(n_ysr_unique)` participants with self-reported outcome data. Table 1 provides complete demographic characteristics.
+
+::: {custom-style="Placement Marker"}
+*[Insert Table 1 here.]*
+:::
+
+The Fairleigh Dickinson University Institutional Review Board determined that the present secondary analysis did not constitute human subjects research. The original ABCD Study protocol received institutional review board approval, including centralized review at the University of California, San Diego and approval at participating study sites. Parents or caregivers provided informed consent, and children provided assent.
+
+## Measures
+
+### Sleep
+
+Sleep onset and wake times were derived from Fitbit wearable devices, which recorded sleep data in 30-second epochs. Evaluation work suggests that Fitbit Charge 2 sleep/wake classifications in adults reasonably align with polysomnography [@dezambotti2018] and match expected pediatric population-level references [@jaffe2026norms]. From these wearable data, we derived two sleep variables. Sleep duration was calculated in hours as the time from sleep onset to wake, including brief awakenings, using ABCD’s corrected sleep duration values that exclude periods with invalid heart-rate data.
+
+We additionally calculated sleep midpoint—the midpoint between sleep onset and wake time, in hours from midnight—as an indicator of sleep phase (the timing of sleep within the 24-hour cycle). To handle the circular nature of time, midpoint values greater than 12 hours (i.e., after noon) were recoded by subtracting 24 hours, centering the scale around midnight such that 11:00 PM = −1 hour and 1:00 AM = +1 hour. When needed, 24 hours were added or subtracted to place all values for a given participant-session within the shortest span of less than 12 hours, using the representation centered closest to 3:00 AM. Values that could not be aligned this way were left unchanged.
+
+### Mental Health Outcomes
+
+Mental health symptoms were assessed using both the Child Behavior Checklist [CBCL\; @achenbach2001] and the Youth Self-Report [YSR\; @achenbach2001]. The CBCL is a widely used and well-validated parent-report measure of child and adolescent behavioral and emotional problems, while the YSR is the corresponding self-report measure. From each instrument, we examined three broadband scales: Externalizing Problems (a composite of rule-breaking and aggressive behavior syndromes), Internalizing Problems (a composite of anxious/depressed, withdrawn/depressed, and somatic complaints syndromes), and Total Problems (which includes both Externalizing and Internalizing Problems as well as additional problem items not captured by those broadband scales, such as self-harm and unusual behavior). All scales use *T*-scores (*M* = 50, *SD* = 10), which are age- and sex-normed to facilitate interpretation, with higher *T*-scores indicating more problems. All outcomes were linked to sleep records from the same participant and assessment year. Sleep and mental health data came from the same ABCD assessment session except at the 4-year follow-up. Because the YSR was not administered at the 4-year annual assessment (04A), we linked YSR data from the 4-year midyear assessment (04M) to sleep data from 04A. When linking these data, we required observations to be no more than `r get_ysr_04_linkage("maximum_allowed_abs_lag_days", 0)` days apart. The actual mean interval between the YSR assessment and the midpoint of the linked sleep-monitoring window was `r get_ysr_04_linkage("mean_abs_lag_days")` days (*Mdn* = `r get_ysr_04_linkage("median_abs_lag_days")`, *SD* = `r get_ysr_04_linkage("sd_abs_lag_days")`).
+
+### Covariates
+
+Based on prior research demonstrating associations with both sleep and mental health, we included race, ethnicity (Hispanic/Latino vs. non-Hispanic/Latino), and family income as dummy-coded covariates. The models used five race categories: White; Black (African American); Asian; More than One Race; and a combined category comprising American Indian/Alaska Native, Native Hawaiian or Other Pacific Islander, and Other (Unknown or not reported). Family income had five categories: greater than \$100,000; \$50,000–\$100,000; less than \$50,000; Don't know; and Decline to answer. The reference categories were White, non-Hispanic, and income greater than \$100,000. Age and sex were not included as covariates in the outcome regression because the outcome measures (CBCL and YSR *T*-scores) are already age- and sex-normed.
+
+### Missing Data
+
+Sessions with missing sleep or outcome data were excluded from that outcome's model. Missing covariate data were minimal. In line with ABCD recommendations [ABCD Study, -@abcd_general_2026], responses of "Don't know" and "Decline to answer" were treated as independent categories rather than missing values. Ethnicity was genuinely missing in 18 participant-sessions in each CBCL model and six participant-sessions in each YSR model, and race and income had no missing values. Missing covariates were handled via marginalization in the Bayesian model, which integrates over all possible category values weighted by their observed sample proportions. For race and ethnicity, category assignments were shared across each person's sessions and weighted by observed participant-level proportions. Income was marginalized separately within each session, weighted by observed session-level proportions.
+
+## Analytic Approach
+
+We used Bayesian multilevel location-scale models to examine associations between sleep parameters and mental health outcomes (see Figure 1 for a conceptual overview). This modeling framework [@feng2022a; @FangWang2025] simultaneously estimates person-specific means and variability in sleep from nightly observations while using these parameters to predict outcomes. Critically, this approach models sleep variability as a latent predictor rather than computing an observed variability metric such as the intraindividual standard deviation. By accounting for measurement error in variability estimates, location-scale models reduce the attenuation bias that affects conventional approaches [@asparouhov2020; @wangliu2026].
+
+::: {custom-style="Placement Marker"}
+*[Insert Figure 1 here.]*
+:::
+
+Although our primary interest was in whether children with more variable sleep generally had more mental health problems than children with less variable sleep, sleep parameters could also vary across sessions within the same child. We therefore included within-person effects to account for these session-specific associations without assuming they were equivalent to the primary between-person associations [@curran2011]. Each model included four sleep predictors: mean sleep duration, sleep duration variability, mean sleep phase (midpoint), and sleep phase variability. Variability was parameterized as the log of the variance per Fang and Wang [-@FangWang2025] and Feng and Hancock [-@feng2022a].
+
+In all six models, the four correlated latent sleep parameters were estimated for each participant-session. To account for linear age trends in sleep across waves, we calculated age at the midpoint of each sleep-monitoring window, centered it at the model-specific mean across participant-sessions, and removed its linear association with the latent sleep means and log-variances. We then partitioned each age-adjusted sleep parameter into a between-person component, representing stable differences between children across assessment waves, and a within-person component, representing deviations from a child's own cross-wave mean. Between-person components were calculated by averaging the age-detrended parameters equally across each participant's eligible sessions. The outcome regression included all four between-person and all four within-person sleep effects. For both CBCL and YSR outcomes, models additionally included a participant-level random effect to account for repeated observations across waves. All models included race, ethnicity, and family income as covariates. Figure 2 presents the corresponding statistical path diagram.
+
+::: {custom-style="Placement Marker"}
+*[Insert Figure 2 here.]*
+:::
+
+Models were estimated using Hamiltonian Monte Carlo sampling in Stan via the cmdstanr package in R [@stan2024; @cmdstanr2024] with non-centered parameterization for session-level sleep parameters and participant random intercepts. Each model was fit with four chains, each running 2,000 warmup iterations and 2,000 sampling iterations, for a total of 8,000 posterior samples. The maximum tree depth was set to `r get_sampler_setting("max_treedepth")`. We used weakly informative priors based on typical adolescent sleep patterns (full prior details are available in Appendix S1 of the Supporting Information). Separate models were fit for each of the six mental health outcomes: CBCL Externalizing, Internalizing, and Total Problems, and YSR Externalizing, Internalizing, and Total Problems.
+
+Because conventional approaches using observed intra-individual standard deviations are susceptible to measurement error and attenuation bias, we did not use them for our primary analyses. However, to ensure that our findings were not simply a result of this methodological choice, we also fit frequentist sensitivity models using the observed intra-individual session sleep means and standard deviations. For these analyses, we fit age-detrended between-person/within-person mixed models with participant random intercepts (see Supporting Information S3 for additional details).
+
+
+
+## Data and Code Availability
+
+This study was a secondary analysis of existing ABCD Study data and was not preregistered. We cannot redistribute ABCD participant-level data because of data use and participant privacy restrictions, but the data are available to qualified researchers through the NIH Brain Development Cohorts Data Hub at https://www.nbdc-datahub.org/. We have made reproducible scripts for all analyses available at https://github.com/shalomnoach/abcd-sleep-variability-cbcl-ysr.
+
+# Results
+
+## Descriptive Statistics
+
+In the CBCL analytic sample (*n* = `r fmt_n(n_cbcl_unique)`; `r get_model_count("CBCL", "N_participant_sessions")` participant-sessions and `r get_model_count("CBCL", "N_obs")` nights), participants wore Fitbit devices for an average of `r get_desc("CBCL", "nights", "mean")` nights per session (*Mdn* = `r get_desc("CBCL", "nights", "median")`, *SD* = `r get_desc("CBCL", "nights", "sd")`, range = `r get_desc("CBCL", "nights", "min", 0)`–`r get_desc("CBCL", "nights", "max", 0)` nights). Across sessions, participants averaged `r get_desc("CBCL", "mean_duration", "mean")` hours of sleep per night (*SD* = `r get_desc("CBCL", "mean_duration", "sd")`). The mean within-person standard deviation for sleep duration was `r get_desc("CBCL", "sd_duration", "mean")` hours (range = `r get_desc("CBCL", "sd_duration", "min")` to `r get_desc("CBCL", "sd_duration", "max")`). Mean sleep phase (midpoint) was `r get_desc("CBCL", "mean_midpoint", "mean")` hours after midnight (*SD* = `r get_desc("CBCL", "mean_midpoint", "sd")`), with an average within-session variability of `r get_desc("CBCL", "sd_midpoint", "mean")` hours (range = `r get_desc("CBCL", "sd_midpoint", "min")` to `r get_desc("CBCL", "sd_midpoint", "max")` hours). On the CBCL, mean scores were `r get_desc("CBCL", "cbcl_ext", "mean")` (*SD* = `r get_desc("CBCL", "cbcl_ext", "sd")`) for Externalizing Problems, `r get_desc("CBCL", "cbcl_int", "mean")` (*SD* = `r get_desc("CBCL", "cbcl_int", "sd")`) for Internalizing Problems, and `r get_desc("CBCL", "cbcl_tot", "mean")` (*SD* = `r get_desc("CBCL", "cbcl_tot", "sd")`) for Total Problems.
+
+In the YSR analytic sample (*n* = `r fmt_n(n_ysr_unique)`; `r get_model_count("YSR", "N_participant_sessions")` participant-sessions and `r get_model_count("YSR", "N_obs")` nights), participants wore Fitbit devices for an average of `r get_desc("YSR", "nights", "mean")` nights per session (*Mdn* = `r get_desc("YSR", "nights", "median")`, *SD* = `r get_desc("YSR", "nights", "sd")`, range = `r get_desc("YSR", "nights", "min", 0)`–`r get_desc("YSR", "nights", "max", 0)` nights). These participants averaged `r get_desc("YSR", "mean_duration", "mean")` hours of sleep per night (*SD* = `r get_desc("YSR", "mean_duration", "sd")`), with a mean within-person standard deviation for sleep duration of `r get_desc("YSR", "sd_duration", "mean")` hours (range = `r get_desc("YSR", "sd_duration", "min")` to `r get_desc("YSR", "sd_duration", "max")`). Mean sleep phase (midpoint) was `r get_desc("YSR", "mean_midpoint", "mean")` hours after midnight (*SD* = `r get_desc("YSR", "mean_midpoint", "sd")`), with an average within-person variability of `r get_desc("YSR", "sd_midpoint", "mean")` hours (range = `r get_desc("YSR", "sd_midpoint", "min")` to `r get_desc("YSR", "sd_midpoint", "max")`). On the YSR, mean scores were `r get_desc("YSR", "ysr_ext", "mean")` (*SD* = `r get_desc("YSR", "ysr_ext", "sd")`) for Externalizing Problems, `r get_desc("YSR", "ysr_int", "mean")` (*SD* = `r get_desc("YSR", "ysr_int", "sd")`) for Internalizing Problems, and `r get_desc("YSR", "ysr_tot", "mean")` (*SD* = `r get_desc("YSR", "ysr_tot", "sd")`) for Total Problems.
+
+## Bivariate Correlations
+
+Table 2 presents zero-order correlations among sleep variables, mental health outcomes, and age. As shown, sleep duration variability and sleep phase variability were strongly positively correlated (*r* = `r get_corr("sleep_duration_isd", "midpoint_isd")`). Sleep duration variability was weakly positively associated with mental health problems, with correlations ranging from `r get_corr("sleep_duration_isd", "cbcl_internalizing")` to `r get_corr("sleep_duration_isd", "cbcl_externalizing")` for parent-reported outcomes and `r get_corr("sleep_duration_isd", "ysr_internalizing")` to `r get_corr("sleep_duration_isd", "ysr_externalizing")` for youth-reported outcomes. Correlations between mean sleep duration and outcomes were also small and ranged from `r get_corr_range("sleep_duration_mean")`; correlations between sleep phase variability and outcomes were again small and positive, ranging from `r get_corr_range("midpoint_isd")`. Mean sleep duration was negatively correlated with sleep duration variability (*r* = `r get_corr("sleep_duration_mean", "sleep_duration_isd")`), indicating that children who slept less on average also showed greater night-to-night inconsistency.
+
+::: {custom-style="Placement Marker"}
+*[Insert Table 2 here.]*
+:::
+
+## Bayesian Regression Models
+
+We estimated six Bayesian location-scale models examining associations between sleep parameters and mental health outcomes. All models demonstrated good convergence—visual inspection of trace plots and trace-rank plots indicated good mixing, all $\hat{R}$ values were ≤ 1.01, and bulk and tail effective sample sizes were > 450 and > 900, respectively, for all parameters. Across all models, there were no divergent transitions and no maximum-tree-depth saturations.
+
+Table 3 presents the estimated between-person associations between latent sleep parameters and CBCL outcomes. Sleep duration variability emerged as a significant predictor across all three problem scales, with children who showed greater typical night-to-night variability also showing higher problem scores. Longer mean sleep duration was associated with higher Externalizing, Internalizing, and Total Problems scores. Later mean sleep phase and greater sleep phase variability showed small negative associations with Externalizing and Total Problems (credible intervals excluding zero), though effect sizes were substantially smaller than those observed for sleep duration variability. Their intervals included zero for Internalizing Problems.
+
+Table 3 also presents associations between sleep parameters and YSR outcomes. Sleep duration variability again showed consistent significant associations, with greater variability predicting higher problem scores across all three scales. Longer mean sleep duration was associated with higher Internalizing and Total Problems scores, although its interval included zero for Externalizing Problems. The 95% credible intervals for mean sleep phase and sleep phase variability included zero for all three outcomes.
+
+::: {custom-style="Placement Marker"}
+*[Insert Table 3 here.]*
+:::
+
+Within-person parameters were included primarily to separate session-level deviations from the between-person associations that were the focus of this study. Most within-person intervals included zero, with positive mean-duration associations with CBCL Internalizing and Total Problems as the only exceptions (see Appendix S2 of the Supporting Information).
+
+To understand the practical magnitude of the unintuitive log-variance effects, consider the predicted difference between children at the 25th versus 75th percentile of sleep duration variability (*iSD* = `r get_pct("25%")` vs. `r get_pct("75%")` hours; see Figure 3). For parent-reported outcomes on the CBCL, this difference corresponds to approximately `r get_effect("CBCL", "Externalizing Problems", "25th vs 75th")` points for Externalizing, `r get_effect("CBCL", "Internalizing Problems", "25th vs 75th")` points for Internalizing, and `r get_effect("CBCL", "Total Problems", "25th vs 75th")` points on the Total Problems *T*-score. Looking at the extremes yields even starker effects: when we compare children at the 10th vs. 90th percentiles (*iSD* = `r get_pct("10%")` vs. `r get_pct("90%")` hours), the model predicts differences of `r get_effect("CBCL", "Externalizing Problems", "10th vs 90th")` points for Externalizing, `r get_effect("CBCL", "Internalizing Problems", "10th vs 90th")` points for Internalizing, and `r get_effect("CBCL", "Total Problems", "10th vs 90th")` points for Total Problems. For the corresponding YSR outcomes, the 25th-to-75th-percentile differences were `r get_effect("YSR", "Externalizing Problems", "25th vs 75th")` points for Externalizing, `r get_effect("YSR", "Internalizing Problems", "25th vs 75th")` points for Internalizing, and `r get_effect("YSR", "Total Problems", "25th vs 75th")` points for Total Problems; the 10th-to-90th-percentile differences were `r get_effect("YSR", "Externalizing Problems", "10th vs 90th")`, `r get_effect("YSR", "Internalizing Problems", "10th vs 90th")`, and `r get_effect("YSR", "Total Problems", "10th vs 90th")` points, respectively. The *SD* of all *T*-scores is 10, so these represent effect sizes of approximately `r get_effect_range()` *SD* after adjusting for other sleep parameters, age, race, ethnicity, and family income.
+
+::: {custom-style="Placement Marker"}
+*[Insert Figure 3 here.]*
+:::
+
+Frequentist sensitivity analyses using observed sleep summaries corroborated our primary findings. Greater between-person sleep duration variability was positively associated with all six outcomes, with all 95% confidence intervals excluding zero (see Supporting Information S3).
+
+# Discussion
+
+This study explored whether night-to-night irregularity in sleep duration and timing is associated with psychological functioning in children and adolescents from the ABCD Study. Across all outcomes and both informants, the most consistent signal was sleep duration variability—greater night-to-night fluctuation in sleep duration predicted meaningfully higher externalizing, internalizing, and total problem scores, even after adjusting for mean sleep duration and demographic covariates.
+
+Notably, sleep duration variability was more strongly associated with Externalizing than Internalizing Problems in parent reports, whereas the two associations were similar in youth reports. Much of the sleep and mental health literature has emphasized internalizing outcomes, particularly depression and anxiety. However, as noted above, developmental research has long suggested that sleep disruption in children often presents behaviorally as hyperactivity, irritability, and oppositional behavior rather than fatigue. Our findings extend that literature by suggesting that night-to-night inconsistency in sleep duration may be one mechanism linking sleep disruption to behavioral dysregulation in youth, above and beyond simply sleeping too little on average. Parents may experience these behaviors, along with bedtime resistance and irregular sleep, as part of a broader pattern of dysregulation, whereas youth may be better able to distinguish internal distress from outward behavior. This difference may therefore partly reflect the informant's perspective, although differences in the ages and composition of the CBCL and YSR samples may also contribute.
+
+Sleep phase mean and variability showed weak and largely null associations with outcomes, and bivariate correlations between phase and outcomes were also small. Phase may still be important, however. Sleep midpoint is widely used as a behavioral indicator of chronotype, but it captures when sleep occurs on the clock rather than whether sleep is aligned with an individual's biological circadian phase, as measured by dim-light melatonin onset (DLMO). Experimental work [e.g., @beebe2025feasibility] suggests that circadian misalignment with this biological phase may affect functioning independent of sleep quantity. Although the present analyses did not include a measure of biological phase, it is possible that the consequences of sleep midpoint depend on its alignment with underlying circadian biology rather than on absolute clock time.
+
+Mean sleep duration also showed a weaker and somewhat different pattern of associations than prior literature [e.g., @freeman2020] might suggest—longer mean sleep duration was associated with higher scores on all parent-reported outcomes and on youth-reported Internalizing and Total Problems, although these associations were weaker than those for sleep duration variability. This pattern may reflect measurement differences. Many studies linking sleep duration to symptoms rely on self- or parent-reported sleep, which shares method variance with questionnaire-based outcomes. In those studies, a child—or parent—who perceives greater dysregulation may report both worse sleep and more symptoms, inflating observed associations. Wearable-derived sleep estimates are less susceptible to these reporting biases, which may partly explain why mean duration effects were weaker here. Objective and subjective sleep measures each carry independent validity and are appropriate for different purposes, even when they do not converge.
+
+Given that sleep duration variability emerged as the strongest predictor, it is tempting to conclude that reducing sleep variability would reduce externalizing and internalizing symptoms. Several limitations, however, preclude that inference. Irregular sleep may contribute to mood and behavioral dysregulation, but the reverse pathway is equally plausible: internalizing symptoms can interfere with sleep onset and continuity, and externalizing symptoms can undermine consistent routines and increase bedtime resistance, each of which could produce irregular sleep schedules. The cross-sectional design cannot distinguish these directions.
+
+Addressing this limitation requires moving beyond between-person comparisons at one time point. Intensive longitudinal, daily diary, or EMA designs that track within-person processes over time can establish temporal ordering and clarify the specific mechanisms by which sleep variability leads to—or follows from—symptom change. The latent variability parameter used here also does not distinguish systematic variability (such as social jetlag) from more generalized irregularity. These patterns likely have different underlying mechanisms and consequences. Examining potential moderators such as demographics, chronotype, pubertal stage, school start times, and family context would further clarify for whom sleep variability is most consequential.
+
+# Conclusion {#conclusion}
+
+Even with these unanswered questions, this study contributes meaningfully to our understanding of the relationship between sleep and mental health. Using objective sleep measurement and statistical methods designed to account for measurement error, we provide evidence from the largest study of children and adolescents to date that night-to-night inconsistency in sleep duration represents a meaningful risk factor for youth mental health, even after adjusting for mean sleep duration. This has clear clinical relevance: current sleep guidelines and screening tools focus largely on total sleep time, yet our findings suggest that consistency deserves equal attention. For parents, clinicians, and researchers working to support youth mental health, promoting regular sleep schedules—not just adequate sleep quantity—may be a promising intervention target with potential benefits across multiple domains of functioning.
+
+```{=typst}
+#pagebreak()
+```
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+**AI statement.** Artificial intelligence tools (Codex and Claude Code) were used to review analytic code for potential programming errors and inconsistencies and to assist the first author in writing documentation for the reproducible analyses. AI was not used to conduct statistical analyses, generate results, draft the manuscript, or generate any of its substantive scientific content. The authors take full responsibility for the accuracy and integrity of the analyses and manuscript.
+
+## Key Points
+
+**What’s known?**
+
+- Most youth sleep research has focused on average sleep duration, and even studies of sleep variability have typically used summary measures that do not account for measurement error.
+
+**What’s new?**
+
+- Using data from the largest U.S. study of brain development and child health, we used Bayesian models that account for measurement error to explore the relationship between sleep variability and transdiagnostic psychological functioning.
+- Greater sleep duration variability was consistently associated with higher internalizing, externalizing, and total problem scores across parent and youth reports, independent of average sleep duration.
+
+**What’s relevant?**
+
+- Our findings suggest that sleep consistency matters for pediatric and adolescent sleep health beyond how long young people sleep.
+- Clinicians and researchers should consider night-to-night consistency alongside sleep duration when assessing youth sleep and designing or delivering interventions.
+
+**Conflicts of interest:** The authors declare that they have no potential conflicts of interest to disclose.
+
+**Data access responsibility statement:** Shalom N. Jaffe had full access to all of the data used in the study and takes responsibility for the integrity of the data and the accuracy of the data analysis.
+
+## Acknowledgments
+
+The authors would like to thank Benjamin N. Johnson, PhD, for his helpful comments on an earlier version of this manuscript. Research reported in this publication was supported by the New Jersey Commission on Science Innovation and Technology Catalyst Research and Development Voucher Pilot Program.
+
+Data used in the preparation of this article were obtained from the Adolescent Brain Cognitive Development (ABCD) Study, held in the NIH Brain Development Cohorts Data Sharing Platform. This is a multisite, longitudinal study designed to recruit more than 10,000 children aged 9-10 and follow them over 10 years into early adulthood. The ABCD Study is supported by the National Institutes of Health and additional federal partners under award numbers: U01DA041048, U01DA050989, U01DA051016, U01DA041022, U01DA051018, U01DA051037, U01DA050987, U01DA041174, U01DA041106, U01DA041117, U01DA041028, U01DA041134, U01DA050988, U01DA051039, U01DA041156, U01DA041025, U01DA041120, U01DA051038, U01DA041148, U01DA041093, U01DA041089, U24DA041123, U24DA041147.
+
+ABCD Consortium investigators designed and implemented the study and/or provided data but did not necessarily participate in the analysis or writing of this report. This manuscript reflects the views of the authors and may not reflect the opinions or views of the NIH or ABCD Consortium investigators.
+
+**Correspondence:** Correspondence concerning this article should be addressed to Shalom N. Jaffe, MA, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: <s.jaffe@student.fdu.edu>
+
+```{=typst}
+#pagebreak()
+```
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+# References
+
+::: {#refs}
+:::
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+```{r table-1, echo=FALSE, results='asis'}
+render_demographics_table(demographics_raw)
+```
+
+```{=openxml}
+<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p>
+```
+
+```{r table-2, echo=FALSE, results='asis'}
+render_correlation_table(correlations, correlation_descriptives)
+```
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+```{r table-3, echo=FALSE, results='asis'}
+render_sleep_effects_table(
+  parameter_summary,
+  c(CBCL = n_cbcl_unique, YSR = n_ysr_unique)
+)
+```
+
+::: {.content-visible when-format="docx"}
+
+```{=openxml}
+<w:p><w:pPr><w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p>
+```
+
+![**Figure 1. Conceptual Model**](figures/conceptual_path_diagram.png){width=100%}
+
+::: {custom-style="Figure Note"}
+*Note.* Conceptual model, estimated separately for each outcome (CBCL and YSR Externalizing, Internalizing, and Total Problems *T*-scores). Within each assessment wave, nightly sleep duration and midpoint define four latent sleep parameters, the mean and log variance of both sleep measures. After a linear age trend is removed, each parameter is decomposed into within-person and between-person components. Ovals represent latent variables, rectangles observed variables, and double-bordered ovals quantities computed from other parameters. Solid arrows represent estimated paths and dashed arrows deterministic computations; an arrow from a panel represents paths from each variable in it. CBCL = Child Behavior Checklist; YSR = Youth Self-Report.
+:::
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+![**Figure 2. Statistical Path Diagram**](figures/statistical_path_diagram.png){width=80%}
+
+::: {custom-style="Figure Note"}
+*Note.* Three-level path diagram with nights *t* nested within assessment sessions *i* and sessions nested within participants *p*. At Level 1, nightly sleep duration and midpoint vary around session-specific means, $\mu_i$, with residual variances $\sigma_i^2$. At Level 2, the session means and log residual variances, $\ell_i = \ln(\sigma_i^2)$, comprise $\boldsymbol{\eta}_i$, which is detrended for age and decomposed into within-person ($\boldsymbol{\eta}_i^W$) and between-person ($\boldsymbol{\eta}_p^B$) components. Mental health ($y_i$; CBCL or YSR *T*-score) is modeled as a function of the within-person sleep components and family income, with the participant-level intercept $y_p^B$ modeled as a function of the between-person sleep components, race, and ethnicity. Circles represent latent variables, squares observed variables, double-bordered circles quantities computed from other parameters, and triangles constants. Solid single-headed arrows represent estimated paths, dashed arrows deterministic computations, and curved double-headed arrows residual correlations, $\omega_{jk}$. CBCL = Child Behavior Checklist; YSR = Youth Self-Report.
+:::
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
+
+![**Figure 3. Illustrative Sleep Variability Patterns**](figures/sleep_variability_figure.png){width=100%}
+
+::: {custom-style="Figure Note"}
+*Note.* Each panel shows the sleep periods of one participant at the indicated percentile of sleep duration variability. Each row represents a 24-hour period from noon to noon, blue indicates the estimated sleep period from sleep onset to wake, and blank rows indicate days with missing sleep data. Weekend dates are shown in red for context. *iSD* = intraindividual standard deviation, in hours.
+:::
+
+:::
+
+::: {.content-visible when-format="typst"}
+
+```{=typst}
+#pagebreak(weak: true)
+```
+
+```{=typst}
+#figure(kind: image, caption: [Conceptual Model])[
+  #image("figures/conceptual_path_diagram.png", width: 100%)
+  #v(12pt)
+  #align(left)[
+    #set par(first-line-indent: 0pt)
+    #emph[Note.] Conceptual model, estimated separately for each outcome (CBCL and YSR Externalizing, Internalizing, and Total Problems #emph[T]-scores). Within each assessment wave, nightly sleep duration and midpoint define four latent sleep parameters, the mean and log variance of both sleep measures. After a linear age trend is removed, each parameter is decomposed into within-person and between-person components. Ovals represent latent variables, rectangles observed variables, and double-bordered ovals quantities computed from other parameters. Solid arrows represent estimated paths and dashed arrows deterministic computations; an arrow from a panel represents paths from each variable in it. CBCL = Child Behavior Checklist; YSR = Youth Self-Report.
+  ]
+] <fig-conceptual-model>
+```
+
+```{=typst}
+#pagebreak()
+```
+
+```{=typst}
+#figure(kind: image, caption: [Statistical Path Diagram])[
+  #align(center)[#image("figures/statistical_path_diagram.png", width: 80%)]
+  #v(12pt)
+  #align(left)[
+    #set par(first-line-indent: 0pt)
+    #emph[Note.] Three-level path diagram with nights $t$ nested within assessment sessions $i$ and sessions nested within participants $p$. At Level 1, nightly sleep duration and midpoint vary around session-specific means, $mu_i$, with residual variances $sigma_i^2$. At Level 2, the session means and log residual variances, $ell_i = ln(sigma_i^2)$, comprise $bold(eta)_i$, which is detrended for age and decomposed into within-person ($bold(eta)_i^"W"$) and between-person ($bold(eta)_p^"B"$) components. Mental health ($y_i$; CBCL or YSR #emph[T]-score) is modeled as a function of the within-person sleep components and family income, with the participant-level intercept $y_p^"B"$ modeled as a function of the between-person sleep components, race, and ethnicity. Circles represent latent variables, squares observed variables, double-bordered circles quantities computed from other parameters, and triangles constants. Solid single-headed arrows represent estimated paths, dashed arrows deterministic computations, and curved double-headed arrows residual correlations, $omega_(j k)$. CBCL = Child Behavior Checklist; YSR = Youth Self-Report.
+  ]
+] <fig-statistical-path-diagram>
+```
+
+```{=typst}
+#pagebreak()
+```
+
+```{=typst}
+#figure(kind: image, caption: [Illustrative Sleep Variability Patterns])[
+  #image("figures/sleep_variability_figure.png", width: 100%)
+  #v(12pt)
+  #align(left)[
+    #set par(first-line-indent: 0pt)
+    #emph[Note.] Each panel shows the sleep periods of one participant at the indicated percentile of sleep duration variability. Each row represents a 24-hour period from noon to noon, blue indicates the estimated sleep period from sleep onset to wake, and blank rows indicate days with missing sleep data. Weekend dates are shown in red for context. #emph[iSD] = intraindividual standard deviation, in hours.
+  ]
+] <fig-sleep-variability>
+```
+
+:::
