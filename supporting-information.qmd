@@ -1,8 +1,8 @@
 ---
 title: "Supporting Information"
 subtitle: |
-  The Association Between Sleep Variability and\
-  Psychological Functioning in the ABCD Study
+  Sleep Variability and Transdiagnostic Psychological Functioning\
+  in Children and Adolescents in the ABCD Study
 author:
   - name: Shalom N. Jaffe and Eleanor L. McGlinchey
 bibliography:
