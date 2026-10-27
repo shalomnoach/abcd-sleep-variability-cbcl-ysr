@@ -1,5 +1,5 @@
 ---
-title: "The Association Between Sleep Variability and Psychological Functioning in the ABCD Study"
+title: "Sleep Variability and Transdiagnostic Psychological Functioning in Children and Adolescents in the ABCD Study"
 author:
   - name: Shalom N. Jaffe
     orcid: 0000-0002-7523-5213
@@ -11,7 +11,6 @@ affiliations:
   - id: fdu
     name: Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University
 bibliography: references.bib
-# The reference-format filter resolves citations before preserving author styling.
 citeproc: false
 csl: apa.csl
 link-citations: true
@@ -54,7 +53,10 @@ fmt <- function(x, digits = 2) {
   sub("^-", "−", value)
 }
 demographics <- demographics_raw |>
-  filter(.data$unit == "participant", .data$model_name == "total_problems_reference") |>
+  filter(
+    .data$unit == "participant",
+    .data$model_name == "total_problems_reference"
+  ) |>
   distinct(instrument, participants)
 get_desc <- function(
   instrument_value,
@@ -281,11 +283,13 @@ get_ysr_04_linkage <- function(statistic, digits = 2) {
 
 correlation_descriptives <- read_output("correlation_descriptives.rds")
 is_docx_output <- identical(knitr::pandoc_to(), "docx")
-source(if (is_docx_output) {
-  "scripts/manuscript_tables_docx.R"
-} else {
-  "scripts/manuscript_tables.R"
-})
+source(
+  if (is_docx_output) {
+    "scripts/manuscript_tables_docx.R"
+  } else {
+    "scripts/manuscript_tables.R"
+  }
+)
 
 word_count_file <- file.path(outputs_dir, "manuscript_word_count.txt")
 manuscript_word_count <- if (file.exists(word_count_file)) {
@@ -299,8 +303,8 @@ manuscript_word_count <- if (file.exists(word_count_file)) {
 #v(1in)
 #align(center)[
   #set par(first-line-indent: 0pt)
-  #strong[The Association Between Sleep Variability \
-  and Psychological Functioning in the ABCD Study]
+  #strong[Sleep Variability and Transdiagnostic Psychological Functioning \
+  in Children and Adolescents in the ABCD Study]
 
   Shalom N. Jaffe and Eleanor L. McGlinchey
 
@@ -319,7 +323,7 @@ manuscript_word_count <- if (file.exists(word_count_file)) {
   Shalom N. Jaffe: #link("https://orcid.org/0000-0002-7523-5213")[https://orcid.org/0000-0002-7523-5213] \
   Eleanor L. McGlinchey: #link("https://orcid.org/0000-0002-2817-688X")[https://orcid.org/0000-0002-2817-688X]
 ]
-Correspondence concerning this article should be addressed to Shalom N. Jaffe, MA, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: #link("mailto:s.jaffe@student.fdu.edu")[s.jaffe\@student.fdu.edu]
+Correspondence concerning this article should be addressed to Shalom N. Jaffe, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: #link("mailto:s.jaffe@student.fdu.edu")[s.jaffe\@student.fdu.edu]
 #pagebreak()
 #set par(first-line-indent: 0pt)
 ```
@@ -327,7 +331,7 @@ Correspondence concerning this article should be addressed to Shalom N. Jaffe, M
 ::: {.content-visible when-format="docx"}
 
 ```{=openxml}
-<w:p><w:pPr><w:pStyle w:val="Title"/><w:spacing w:before="1440" w:after="0" w:line="480" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>The Association Between Sleep Variability and Psychological Functioning in the ABCD Study</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="Title"/><w:spacing w:before="1440" w:after="0" w:line="480" w:lineRule="exact"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>Sleep Variability and Transdiagnostic Psychological Functioning in Children and Adolescents in the ABCD Study</w:t></w:r></w:p>
 <w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Shalom N. Jaffe and Eleanor L. McGlinchey</w:t></w:r></w:p>
 <w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University</w:t></w:r></w:p>
 <w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr></w:p>
@@ -346,7 +350,7 @@ Correspondence concerning this article should be addressed to Shalom N. Jaffe, M
 <w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>Author Note</w:t></w:r></w:p>
 <w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Shalom N. Jaffe: https://orcid.org/0000-0002-7523-5213</w:t></w:r></w:p>
 <w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Eleanor L. McGlinchey: https://orcid.org/0000-0002-2817-688X</w:t></w:r></w:p>
-<w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Correspondence concerning this article should be addressed to Shalom N. Jaffe, MA, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: s.jaffe@student.fdu.edu</w:t></w:r></w:p>
+<w:p><w:pPr><w:pStyle w:val="AuthorNote"/></w:pPr><w:r><w:t>Correspondence concerning this article should be addressed to Shalom N. Jaffe, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: s.jaffe@student.fdu.edu</w:t></w:r></w:p>
 <w:p><w:r><w:br w:type="page"/></w:r></w:p>
 ```
 
@@ -356,17 +360,15 @@ Correspondence concerning this article should be addressed to Shalom N. Jaffe, M
 
 ::: {custom-style="Abstract"}
 
-**Background:** Sleep disturbances are closely linked to psychopathology, yet most research has focused on mean sleep duration rather than night-to-night variability. This study examines whether sleep variability is associated with internalizing and externalizing problems in youth.
+**Objective:** Sleep disturbances are closely linked to psychopathology, yet most research has focused on mean sleep duration rather than night-to-night variability. This study examines whether sleep variability is associated with internalizing and externalizing problems in youth.
 
-**Method:** Data come from release 7.0 of the Adolescent Brain Cognitive Development (ABCD) Study, including `r fmt_n(n_cbcl_unique)` youth with parent-reported outcomes (Child Behavior Checklist; *M*~age~ = `r get_age("CBCL")` years) and `r fmt_n(n_ysr_unique)` with self-reported outcomes (Youth Self-Report; *M*~age~ = `r get_age("YSR")` years) in the Total Problems reference cohorts. Sleep duration and timing were derived from Fitbit-measured sleep. Bayesian multilevel location–scale models simultaneously estimated individual differences in mean sleep and night-to-night variability and examined their between-person and within-person associations with age- and sex-normed internalizing, externalizing, and total problem scores after age detrending, adjusting for race, ethnicity, and family income.
+**Method:** Data come from the Adolescent Brain Cognitive Development (ABCD) Study, including `r fmt_n(n_cbcl_unique)` youth with parent-reported outcomes (Child Behavior Checklist; *M*~age~ = `r get_age("CBCL")` years, 48.85% female) and `r fmt_n(n_ysr_unique)` with self-reported outcomes (Youth Self-Report; *M*~age~ = `r get_age("YSR")` years, 50.32% female). Sleep duration and timing were derived from Fitbit-measured sleep. Bayesian multilevel location–scale models simultaneously estimated individual differences in mean sleep and night-to-night variability and examined their associations with age- and sex-normed internalizing, externalizing, and total problem scores, adjusting for age, race, ethnicity, and family income.
 
-**Results:** Between-person sleep duration variability (log-variance) was a consistent predictor of mental health problems. In parent-reported models, higher variability predicted greater Externalizing (*b* = `r get_beta("CBCL", "Externalizing Problems")`, 95% CrI `r get_beta_interval("CBCL", "Externalizing Problems")`), Internalizing (*b* = `r get_beta("CBCL", "Internalizing Problems")`, `r get_beta_interval("CBCL", "Internalizing Problems")`), and Total Problems (*b* = `r get_beta("CBCL", "Total Problems")`, `r get_beta_interval("CBCL", "Total Problems")`). Similar patterns emerged in youth self-reports (Externalizing: *b* = `r get_beta("YSR", "Externalizing Problems")`, `r get_beta_interval("YSR", "Externalizing Problems")`; Internalizing: *b* = `r get_beta("YSR", "Internalizing Problems")`, `r get_beta_interval("YSR", "Internalizing Problems")`; Total: *b* = `r get_beta("YSR", "Total Problems")`, `r get_beta_interval("YSR", "Total Problems")`), corresponding to approximately `r get_effect_range()` normative *SD* differences across typical ranges of variability. Mean sleep duration was positively associated with all parent-reported outcomes and youth-reported Internalizing and Total Problems.
+**Results:** Between-person sleep duration variability was a consistent predictor of mental health problems. In parent-reported models, higher variability predicted greater Externalizing (*b* = `r get_beta("CBCL", "Externalizing Problems")`, 95% CrI `r get_beta_interval("CBCL", "Externalizing Problems")`), Internalizing (*b* = `r get_beta("CBCL", "Internalizing Problems")`, `r get_beta_interval("CBCL", "Internalizing Problems")`), and Total Problems (*b* = `r get_beta("CBCL", "Total Problems")`, `r get_beta_interval("CBCL", "Total Problems")`). Similar, though somewhat smaller, patterns emerged in youth self-reports (Externalizing: *b* = `r get_beta("YSR", "Externalizing Problems")`, `r get_beta_interval("YSR", "Externalizing Problems")`; Internalizing: *b* = `r get_beta("YSR", "Internalizing Problems")`, `r get_beta_interval("YSR", "Internalizing Problems")`; Total: *b* = `r get_beta("YSR", "Total Problems")`, `r get_beta_interval("YSR", "Total Problems")`), corresponding to approximately medium effect sizes (`r get_effect_range()` *SD*) across typical ranges of variability. Mean sleep duration was positively associated with all parent-reported outcomes and youth-reported Internalizing and Total Problems.
 
-**Conclusion:** In summary, sleep duration variability emerged as a robust between-person correlate of youth psychopathology, independent of average sleep duration. These findings highlight sleep consistency as an important dimension of sleep health.
+**Conclusions:** In summary, sleep duration variability emerged as a robust between-person correlate of youth psychopathology, independent of average sleep duration. Our findings highlight sleep consistency as an independent and important dimension of sleep health.
 
 **Keywords:** sleep, sleep variability, adolescence, internalizing problems, externalizing problems
-
-**Abbreviations:** CrI = credible interval.
 
 :::
 
@@ -379,7 +381,7 @@ Correspondence concerning this article should be addressed to Shalom N. Jaffe, M
 #set par(first-line-indent: (amount: 0.5in, all: true))
 ```
 
-# The Association Between Sleep Variability and Psychological Functioning in the ABCD Study
+# Sleep Variability and Transdiagnostic Psychological Functioning in Children and Adolescents in the ABCD Study
 
 Sleep disturbances frequently co-occur with psychiatric conditions across the diagnostic spectrum. In some disorders (such as major depressive disorder, generalized anxiety disorder, posttraumatic stress disorder, and others), sleep problems are so closely intertwined with core symptoms that they are used as a diagnostic criterion [@apa2022; @who2024]. Understanding sleep is therefore important not only for addressing sleep problems directly but also for understanding and improving mental health outcomes more broadly.
 
@@ -457,7 +459,7 @@ Because conventional approaches using observed intra-individual standard deviati
 
 ## Data and Code Availability
 
-This study was a secondary analysis of existing ABCD Study data and was not preregistered. We cannot redistribute ABCD participant-level data because of data use and participant privacy restrictions, but the data are available to qualified researchers through the NIH Brain Development Cohorts Data Hub at https://www.nbdc-datahub.org/. We have made reproducible scripts for all analyses available at https://github.com/shalomnoach/abcd-sleep-variability-cbcl-ysr.
+We cannot redistribute ABCD participant-level data because of data use and participant privacy restrictions, but the data are available to qualified researchers through the NIH Brain Development Cohorts Data Hub at https://www.nbdc-datahub.org/. We have made reproducible scripts for all analyses available at https://github.com/shalomnoach/abcd-sleep-variability-cbcl-ysr.
 
 # Results
 
@@ -511,8 +513,6 @@ Given that sleep duration variability emerged as the strongest predictor, it is 
 
 Addressing this limitation requires moving beyond between-person comparisons at one time point. Intensive longitudinal, daily diary, or EMA designs that track within-person processes over time can establish temporal ordering and clarify the specific mechanisms by which sleep variability leads to—or follows from—symptom change. The latent variability parameter used here also does not distinguish systematic variability (such as social jetlag) from more generalized irregularity. These patterns likely have different underlying mechanisms and consequences. Examining potential moderators such as demographics, chronotype, pubertal stage, school start times, and family context would further clarify for whom sleep variability is most consequential.
 
-# Conclusion {#conclusion}
-
 Even with these unanswered questions, this study contributes meaningfully to our understanding of the relationship between sleep and mental health. Using objective sleep measurement and statistical methods designed to account for measurement error, we provide evidence from the largest study of children and adolescents to date that night-to-night inconsistency in sleep duration represents a meaningful risk factor for youth mental health, even after adjusting for mean sleep duration. This has clear clinical relevance: current sleep guidelines and screening tools focus largely on total sleep time, yet our findings suggest that consistency deserves equal attention. For parents, clinicians, and researchers working to support youth mental health, promoting regular sleep schedules—not just adequate sleep quantity—may be a promising intervention target with potential benefits across multiple domains of functioning.
 
 ```{=typst}
@@ -523,37 +523,27 @@ Even with these unanswered questions, this study contributes meaningfully to our
 <w:p><w:r><w:br w:type="page"/></w:r></w:p>
 ```
 
-**AI statement.** Artificial intelligence tools (Codex and Claude Code) were used to review analytic code for potential programming errors and inconsistencies and to assist the first author in writing documentation for the reproducible analyses. AI was not used to conduct statistical analyses, generate results, draft the manuscript, or generate any of its substantive scientific content. The authors take full responsibility for the accuracy and integrity of the analyses and manuscript.
+**Credit roles:**
 
-## Key Points
+Shalom N. Jaffe: Conceptualization, Data Curation, Methodology, Formal analysis, Writing–original draft, Writing–review and editing, Visualization, Funding acquisition
 
-**What’s known?**
+Eleanor L. McGlinchey: Conceptualization, Writing–Review and editing, Supervision, Project administration, Funding acquisition
 
-- Most youth sleep research has focused on average sleep duration, and even studies of sleep variability have typically used summary measures that do not account for measurement error.
+**Funding details:** Research reported in this publication was supported by the New Jersey Commission on Science Innovation and Technology Catalyst Research and Development Voucher Pilot Program.
 
-**What’s new?**
+**Disclosure statement:** The authors declare that they have no potential competing interests to disclose.
 
-- Using data from the largest U.S. study of brain development and child health, we used Bayesian models that account for measurement error to explore the relationship between sleep variability and transdiagnostic psychological functioning.
-- Greater sleep duration variability was consistently associated with higher internalizing, externalizing, and total problem scores across parent and youth reports, independent of average sleep duration.
+**Declaration of generative AI use:** Artificial intelligence tools (Codex and Claude Code) were used to review analytic code for potential programming errors and inconsistencies and to assist the first author in writing documentation for the reproducible analyses. AI was not used to conduct statistical analyses, generate results, draft or revise the manuscript, or generate any of its substantive scientific content. The authors take full responsibility for the accuracy and integrity of the analyses and manuscript.
 
-**What’s relevant?**
+**Data availability statement:** We cannot redistribute ABCD participant-level data because of data use and participant privacy restrictions, but the data are available to qualified researchers through the NIH Brain Development Cohorts Data Hub at <https://www.nbdc-datahub.org/>. We have made reproducible scripts for all analyses available at <https://github.com/shalomnoach/abcd-sleep-variability-cbcl-ysr>.
 
-- Our findings suggest that sleep consistency matters for pediatric and adolescent sleep health beyond how long young people sleep.
-- Clinicians and researchers should consider night-to-night consistency alongside sleep duration when assessing youth sleep and designing or delivering interventions.
+## Acknowledgments:
 
-**Conflicts of interest:** The authors declare that they have no potential conflicts of interest to disclose.
-
-**Data access responsibility statement:** Shalom N. Jaffe had full access to all of the data used in the study and takes responsibility for the integrity of the data and the accuracy of the data analysis.
-
-## Acknowledgments
-
-The authors would like to thank Benjamin N. Johnson, PhD, for his helpful comments on an earlier version of this manuscript. Research reported in this publication was supported by the New Jersey Commission on Science Innovation and Technology Catalyst Research and Development Voucher Pilot Program.
+The authors would like to thank Benjamin N. Johnson, PhD, for his helpful comments on an earlier version of this manuscript.
 
 Data used in the preparation of this article were obtained from the Adolescent Brain Cognitive Development (ABCD) Study, held in the NIH Brain Development Cohorts Data Sharing Platform. This is a multisite, longitudinal study designed to recruit more than 10,000 children aged 9-10 and follow them over 10 years into early adulthood. The ABCD Study is supported by the National Institutes of Health and additional federal partners under award numbers: U01DA041048, U01DA050989, U01DA051016, U01DA041022, U01DA051018, U01DA051037, U01DA050987, U01DA041174, U01DA041106, U01DA041117, U01DA041028, U01DA041134, U01DA050988, U01DA051039, U01DA041156, U01DA041025, U01DA041120, U01DA051038, U01DA041148, U01DA041093, U01DA041089, U24DA041123, U24DA041147.
 
 ABCD Consortium investigators designed and implemented the study and/or provided data but did not necessarily participate in the analysis or writing of this report. This manuscript reflects the views of the authors and may not reflect the opinions or views of the NIH or ABCD Consortium investigators.
-
-**Correspondence:** Correspondence concerning this article should be addressed to Shalom N. Jaffe, MA, Marion Turpan College of Psychology and Counseling, Fairleigh Dickinson University, 1000 River Road, Teaneck, NJ 07666. Email: <s.jaffe@student.fdu.edu>
 
 ```{=typst}
 #pagebreak()
